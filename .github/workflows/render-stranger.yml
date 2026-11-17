@@ -1,4 +1,3 @@
-
 name: Render The Stranger in My House
 
 on:
@@ -55,6 +54,13 @@ jobs:
           fi
           bash tools/setup.sh
 
+      - name: Generate required audio cue assets
+        run: |
+          cd "$PROJECT_DIR"
+          npm run cues
+          test -f library/sound/cues/reveal-chime.wav
+          echo "Required sound cues generated."
+
       - name: Validate episode
         run: |
           cd "$PROJECT_DIR"
@@ -63,7 +69,7 @@ jobs:
       - name: Render episode
         run: |
           cd "$PROJECT_DIR"
-          npm run anim -- render-yaml episodes/the-stranger-in-my-house/episode.yml
+          npm run anim -- render-yaml episodes/the-stranger-in-my-house/episode.yml --threads 1 --force
 
       - name: Collect rendered video
         run: |
@@ -83,4 +89,3 @@ jobs:
           name: the-stranger-in-my-house
           path: rendered-video/
           if-no-files-found: error
-          
