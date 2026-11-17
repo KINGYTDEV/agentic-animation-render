@@ -1,0 +1,86 @@
+
+name: Render The Stranger in My House
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Extract animation project
+        run: |
+          mkdir -p extracted
+          tar -xzf agentic-animation-transfer.tar.gz -C extracted
+
+          EPISODE=$(find extracted -type f \
+            -path '*/episodes/the-stranger-in-my-house/episode.yml' \
+            -print -quit)
+
+          if [ -z "$EPISODE" ]; then
+            echo "Could not find the episode file in the archive."
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$(dirname "$(dirname "$EPISODE")")")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Episode found: $EPISODE"
+          echo "Project directory: $PROJECT_DIR"
+
+      - name: Install project dependencies
+        run: |
+          cd "$PROJECT_DIR"
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+          bash tools/setup.sh
+
+      - name: Validate episode
+        run: |
+          cd "$PROJECT_DIR"
+          npm run anim -- check episodes/the-stranger-in-my-house/episode.yml
+
+      - name: Render episode
+        run: |
+          cd "$PROJECT_DIR"
+          npm run anim -- render-yaml episodes/the-stranger-in-my-house/episode.yml
+
+      - name: Collect rendered video
+        run: |
+          mkdir -p rendered-video
+          find "$PROJECT_DIR" -type f -iname '*.mp4' \
+            -not -path '*/node_modules/*' \
+            -exec cp --parents {} rendered-video/ \;
+
+          if [ -z "$(find rendered-video -type f -iname '*.mp4' -print -quit)" ]; then
+            echo "No MP4 file was produced."
+            exit 1
+          fi
+
+      - name: Upload MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-stranger-in-my-house
+          path: rendered-video/
+          if-no-files-found: error
+          
